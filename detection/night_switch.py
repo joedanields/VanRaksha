@@ -17,7 +17,7 @@ class NightSwitch:
 
     def is_night(self) -> bool:
         """True if current hour is in configured night range."""
-        now = datetime.now().hour
+        now = datetime.now().astimezone().hour
         if self.night_start_hour <= self.night_end_hour:
             return self.night_start_hour <= now < self.night_end_hour
         return now >= self.night_start_hour or now < self.night_end_hour

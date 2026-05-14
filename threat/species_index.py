@@ -16,6 +16,8 @@ SPECIES_DANGER_INDEX = {
     "unknown": {"danger": 5, "category": "unknown"},
 }
 
+SPECIES_CLASS_NAMES = list(SPECIES_DANGER_INDEX.keys())
+
 
 def get_danger_score(species: str) -> int:
     """Return danger score in range 1-10, defaulting to 5 for unknown species."""

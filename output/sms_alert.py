@@ -51,7 +51,7 @@ class SMSAlert:
             f"Zone: {camera_zone}\n"
             f"Species: {species}\n"
             f"Threat Score: {score}/100\n"
-            f"Time: {datetime.now().strftime('%H:%M %d-%m-%Y')}\n"
+            f"Time: {datetime.now(timezone.utc).strftime('%H:%M %d-%m-%Y')}\n"
             "Action required. Please respond."
         )
         threading.Thread(target=self._dispatch, args=(message,), daemon=True).start()

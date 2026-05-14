@@ -20,6 +20,7 @@ from output.sms_alert import SMSAlert
 from output.voice import VoiceAlert
 from threat.alert_level import AlertLevel, get_alert_level
 from threat.scorer import ThreatScorer
+from threat.species_index import SPECIES_CLASS_NAMES
 from utils.drawing import annotate_detection
 
 
@@ -35,9 +36,7 @@ def main():
     night_switch = NightSwitch(str(config.YOLO_MODEL_PATH), str(config.NIGHT_MODEL_PATH) if config.NIGHT_MODEL_PATH else None, config.NIGHT_START_HOUR, config.NIGHT_END_HOUR)
     detector = WildlifeDetector(str(config.YOLO_MODEL_PATH), config.CONFIDENCE_THRESHOLD)
     active_model_path = str(config.YOLO_MODEL_PATH)
-    classifier = SpeciesClassifier(str(config.CLASSIFIER_MODEL_PATH), [
-        "tiger", "leopard", "elephant", "sloth_bear", "wild_boar", "gaur", "wolf", "hyena", "nilgai", "deer", "monkey", "peacock", "unknown"
-    ])
+    classifier = SpeciesClassifier(str(config.CLASSIFIER_MODEL_PATH), SPECIES_CLASS_NAMES)
     scorer = ThreatScorer()
     voice = VoiceAlert(language=config.TTS_LANGUAGE, use_online=config.USE_ONLINE_TTS, cooldown_seconds=config.VOICE_COOLDOWN_SECONDS)
     led = LEDController(mode=config.LED_MODE)

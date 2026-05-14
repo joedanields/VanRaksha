@@ -44,11 +44,16 @@ class VoiceAlert:
         self.audio_dir.mkdir(parents=True, exist_ok=True)
         self.engine = pyttsx3.init() if pyttsx3 and not use_online else None
 
-    def _message(self, species: str, alert_level: AlertLevel, direction: str) -> str | None:
+    def _message(self, species: str, alert_level: AlertLevel, direction: str, distance_m: int | None) -> str | None:
         if alert_level == AlertLevel.SAFE:
             return None
         template = self.TEMPLATES.get(alert_level)
-        return template.format(species=species, direction=direction) if template else None
+        if not template:
+            return None
+        message = template.format(species=species, direction=direction)
+        if distance_m is not None and distance_m >= 0:
+            message = f"{message} Approximate distance: {distance_m} meters."
+        return message
 
     def speak(
         self,
@@ -59,7 +64,7 @@ class VoiceAlert:
         camera_zone: str = "default",
     ) -> bool:
         """Trigger non-blocking voice playback for eligible alerts."""
-        message = self._message(species, alert_level, direction)
+        message = self._message(species, alert_level, direction, distance_m)
         if not message:
             return False
 
