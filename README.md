@@ -14,7 +14,7 @@ VanRaksha AI is a Python-based wildlife threat monitoring system that:
 - Stores events in SQLite
 - Serves a live Flask + Socket.IO dashboard
 
-Core runtime entry point: `/home/runner/work/VanRaksha/VanRaksha/main.py`
+Core runtime entry point: `main.py`
 
 ## Key Features
 
@@ -139,4 +139,4 @@ python -m unittest discover -s tests -v
 
 ## License
 
-This repository includes a `LICENSE` file. See `/home/runner/work/VanRaksha/VanRaksha/LICENSE` for details.
+This repository includes a `LICENSE` file. See `LICENSE` for details.
