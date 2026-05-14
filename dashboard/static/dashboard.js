@@ -47,7 +47,9 @@ socket.on('frame_stats', () => {});
 
 document.getElementById('muteBtn').addEventListener('click', async () => {
   state.muted = !state.muted;
-  document.getElementById('muteBtn').textContent = state.muted ? 'Unmute voice' : 'Mute voice';
+  const muteBtn = document.getElementById('muteBtn');
+  muteBtn.textContent = state.muted ? 'Unmute voice' : 'Mute voice';
+  muteBtn.setAttribute('aria-pressed', String(state.muted));
   await fetch('/api/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

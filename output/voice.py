@@ -60,7 +60,7 @@ class VoiceAlert:
         species: str,
         alert_level: AlertLevel,
         direction: str = "nearby",
-        distance_m: int = None,
+        distance_m: int | None = None,
         camera_zone: str = "default",
     ) -> bool:
         """Trigger non-blocking voice playback for eligible alerts."""
