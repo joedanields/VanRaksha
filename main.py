@@ -5,7 +5,7 @@ import logging
 import queue
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import cv2
 
@@ -100,7 +100,7 @@ def main():
 
                 event_logger.log_event(
                     {
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "camera_zone": config.CAMERA_ZONE,
                         "species": species,
                         "confidence": det["confidence"],

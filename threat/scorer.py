@@ -1,7 +1,7 @@
 """Threat scoring engine."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from threat.species_index import get_danger_score
 
@@ -25,7 +25,7 @@ class ThreatScorer:
         else:
             proximity_score = 1
 
-        hour = datetime.now().hour
+        hour = datetime.now(timezone.utc).hour
         time_multiplier = 1.4 if hour >= 18 or hour < 6 else 1.0
         animal_count_factor = min(animal_count, 5) * 2
         base_detection_score = max(0.0, min(detection_confidence, 1.0)) * 10

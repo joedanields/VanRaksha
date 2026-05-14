@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import config
 from threat.alert_level import AlertLevel
@@ -40,7 +40,7 @@ class SMSAlert:
             return False
 
         key = (species.lower(), camera_zone.lower())
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         with self.lock:
             if key in self.cooldowns and now - self.cooldowns[key] < self.cooldown:
                 return False

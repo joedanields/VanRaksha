@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from threat.alert_level import AlertLevel
@@ -64,7 +64,7 @@ class VoiceAlert:
             return False
 
         key = (species.lower(), camera_zone.lower(), alert_level.name)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         with self.lock:
             last = self.last_alerts.get(key)
             if last and now - last < timedelta(seconds=self.cooldown_seconds):
