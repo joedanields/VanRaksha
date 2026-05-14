@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VanRaksha AI Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <h1>VanRaksha AI</h1>
+    <div class="header-right">
+      <span id="liveClock"></span>
+      <span id="alertBadge" class="badge safe">SAFE</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="left-panel">
+      <img id="feed" src="/video_feed" alt="Live video feed" />
+      <div class="live-details">
+        <div>Species: <span class="mono" id="species">-</span></div>
+        <div>Confidence: <span class="mono" id="confidence">0%</span></div>
+        <div class="score-wrap">Threat Score: <span class="mono" id="score">0</span>
+          <div class="bar"><div id="scoreBar"></div></div>
+        </div>
+        <div>Alert: <span class="mono" id="alertText">SAFE</span></div>
+      </div>
+    </section>
+
+    <section class="right-panel">
+      <div class="cards">
+        <article><h3>Total detections today</h3><p class="mono" id="totalDetections">0</p></article>
+        <article><h3>Most seen species</h3><p class="mono" id="mostSeen">-</p></article>
+        <article><h3>Last alert time</h3><p class="mono" id="lastAlert">-</p></article>
+      </div>
+      <button id="muteBtn">Mute voice</button>
+      <table>
+        <thead><tr><th>Timestamp</th><th>Species</th><th>Score</th><th>Alert</th></tr></thead>
+        <tbody id="eventsBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <span>Camera Zone: {{ camera_zone }}</span>
+    <span id="uptime"></span>
+  </footer>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>
