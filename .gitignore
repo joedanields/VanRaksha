@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# VanRaksha runtime artifacts
+detection/models/*.pt
+output/audio/*.mp3
+logger/vanraksha.db

@@ -1,0 +1,111 @@
+"""Flask + SocketIO dashboard server."""
+from __future__ import annotations
+
+import logging
+import threading
+from queue import Empty
+
+import cv2
+import numpy as np
+from flask import Flask, Response, jsonify, render_template, request
+from flask_socketio import SocketIO
+
+import config
+
+
+class DashboardServer:
+    """Serve live dashboard APIs, MJPEG stream, and websocket updates."""
+
+    def __init__(self, event_logger, frame_queue, shared_state: dict | None = None):
+        self.logger = logging.getLogger(__name__)
+        self.event_logger = event_logger
+        self.frame_queue = frame_queue
+        self.shared_state = shared_state or {"confidence_threshold": config.CONFIDENCE_THRESHOLD, "alert_mute": False}
+        self.state_lock = threading.Lock()
+        self.frame_lock = threading.Lock()
+        self.latest_frame: bytes | None = None
+
+        self.app = Flask(
+            __name__,
+            template_folder=str((config.BASE_DIR / "dashboard/templates")),
+            static_folder=str((config.BASE_DIR / "dashboard/static")),
+        )
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+        self._register_routes()
+        threading.Thread(target=self._frame_ingest_loop, daemon=True).start()
+
+    def _register_routes(self) -> None:
+        @self.app.get("/")
+        def index():
+            return render_template("index.html", camera_zone=config.CAMERA_ZONE)
+
+        @self.app.get("/api/events")
+        def api_events():
+            return jsonify(self.event_logger.get_recent(50))
+
+        @self.app.get("/api/stats")
+        def api_stats():
+            return jsonify(self.event_logger.get_stats())
+
+        @self.app.post("/api/config")
+        def api_config():
+            data = request.get_json(silent=True) or {}
+            with self.state_lock:
+                if "confidence_threshold" in data:
+                    self.shared_state["confidence_threshold"] = float(data["confidence_threshold"])
+                if "alert_mute" in data:
+                    self.shared_state["alert_mute"] = bool(data["alert_mute"])
+            return jsonify({"ok": True, "config": self.shared_state})
+
+        @self.app.get("/video_feed")
+        def video_feed():
+            return Response(self._frame_generator(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+    def _placeholder_frame(self) -> bytes:
+        frame = np.zeros((config.FRAME_HEIGHT, config.FRAME_WIDTH, 3), dtype=np.uint8)
+        cv2.putText(frame, "No feed", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 136), 3)
+        ok, encoded = cv2.imencode(".jpg", frame)
+        return encoded.tobytes() if ok else b""
+
+    def _frame_generator(self):
+        while True:
+            with self.frame_lock:
+                payload = self.latest_frame
+            if payload is None:
+                payload = self._placeholder_frame()
+            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + payload + b"\r\n"
+
+    def _frame_ingest_loop(self) -> None:
+        while True:
+            try:
+                frame = self.frame_queue.get(timeout=1.0)
+            except Empty:
+                continue
+            if isinstance(frame, bytes):
+                payload = frame
+            else:
+                ok, encoded = cv2.imencode(".jpg", frame)
+                payload = encoded.tobytes() if ok else self._placeholder_frame()
+            with self.frame_lock:
+                self.latest_frame = payload
+
+    def emit_new_alert(self, payload: dict) -> None:
+        self.socketio.emit("new_alert", payload)
+
+    def emit_frame_stats(self, payload: dict) -> None:
+        self.socketio.emit("frame_stats", payload)
+
+    def run(self) -> None:
+        self.socketio.run(self.app, host="0.0.0.0", port=config.FLASK_PORT, debug=config.FLASK_DEBUG, use_reloader=False)
+
+
+if __name__ == "__main__":
+    from queue import Queue
+
+    from logger.event_logger import EventLogger
+
+    logging.basicConfig(level=logging.INFO)
+    server = DashboardServer(EventLogger(str(config.DB_PATH)), Queue(maxsize=5))
+    logging.getLogger(__name__).info(
+        "Dashboard self-test: routes ready %s", sorted([r.rule for r in server.app.url_map.iter_rules()])
+    )
