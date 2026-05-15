@@ -54,13 +54,29 @@ def _human_near_animal(animal_bbox: list, human_detections: list[dict], threshol
     return False
 
 
+def _is_camera_source(source: int | str) -> bool:
+    if isinstance(source, int):
+        return True
+    if isinstance(source, str) and source.isdigit():
+        return True
+    return False
+
+
+def _open_capture(source: int | str) -> cv2.VideoCapture:
+    cap = cv2.VideoCapture(source)
+    if _is_camera_source(source):
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.FRAME_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
+    return cap
+
+
 def main():
     """Run camera ingestion, detection, alerts, and dashboard updates."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     log = logging.getLogger("main")
 
     frame_queue = queue.Queue(maxsize=5)
-    shared_state = {"confidence_threshold": config.CONFIDENCE_THRESHOLD, "alert_mute": False}
+    shared_state = {"confidence_threshold": config.CONFIDENCE_THRESHOLD, "alert_mute": False, "video_source": None}
 
     event_logger = EventLogger(str(config.DB_PATH))
     night_switch = NightSwitch(str(config.YOLO_MODEL_PATH), str(config.NIGHT_MODEL_PATH) if config.NIGHT_MODEL_PATH else None, config.NIGHT_START_HOUR, config.NIGHT_END_HOUR)
@@ -75,11 +91,10 @@ def main():
     dashboard = DashboardServer(event_logger, frame_queue, shared_state)
     threading.Thread(target=dashboard.run, daemon=True).start()
 
-    cap = cv2.VideoCapture(config.CAMERA_SOURCE)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.FRAME_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
+    active_source: int | str = config.CAMERA_SOURCE
+    cap = _open_capture(active_source)
     if not cap.isOpened():
-        log.warning("Camera unavailable; dashboard will show No feed")
+        log.warning("Input source unavailable; dashboard will show No feed")
 
     wild_labels = {_normalize_label(label) for label in config.WILD_ANIMAL_LABELS if label}
     human_labels = {_normalize_label(label) for label in config.HUMAN_LABELS if label}
@@ -89,14 +104,38 @@ def main():
     tick = time.time()
     try:
         while True:
+            desired_source = shared_state.get("video_source") or config.CAMERA_SOURCE
+            if desired_source != active_source:
+                cap.release()
+                active_source = desired_source
+                cap = _open_capture(active_source)
+
             if not cap.isOpened():
-                time.sleep(0.5)
-                dashboard.emit_frame_stats({"fps": 0, "detections": 0})
-                continue
+                if shared_state.get("video_source"):
+                    log.warning("Video source unavailable; reverting to camera")
+                    shared_state["video_source"] = None
+                    active_source = config.CAMERA_SOURCE
+                    cap.release()
+                    cap = _open_capture(active_source)
+                if not cap.isOpened():
+                    time.sleep(0.5)
+                    dashboard.emit_frame_stats({"fps": 0, "detections": 0})
+                    continue
 
             ok, frame = cap.read()
             if not ok:
-                continue
+                if not _is_camera_source(active_source):
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ok, frame = cap.read()
+                    if not ok:
+                        log.warning("Video ended or unreadable; reverting to camera")
+                        shared_state["video_source"] = None
+                        active_source = config.CAMERA_SOURCE
+                        cap.release()
+                        cap = _open_capture(active_source)
+                        continue
+                else:
+                    continue
 
             detector.confidence_threshold = float(shared_state.get("confidence_threshold", config.CONFIDENCE_THRESHOLD))
             next_model_path = night_switch.get_active_model_path()
