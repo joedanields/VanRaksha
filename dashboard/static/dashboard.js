@@ -1,5 +1,14 @@
 const state = { start: Date.now(), muted: false };
 const socket = io();
+const videoFileInput = document.getElementById('videoFile');
+const videoStatus = document.getElementById('videoStatus');
+const uploadBtn = document.getElementById('uploadBtn');
+const stopVideoBtn = document.getElementById('stopVideoBtn');
+
+function setVideoStatus(message) {
+  if (!videoStatus) return;
+  videoStatus.textContent = message;
+}
 
 function updateClock() {
   const now = new Date();
@@ -55,6 +64,43 @@ document.getElementById('muteBtn').addEventListener('click', async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ alert_mute: state.muted }),
   });
+});
+
+uploadBtn?.addEventListener('click', async () => {
+  const file = videoFileInput?.files?.[0];
+  if (!file) {
+    setVideoStatus('Select a video to upload.');
+    return;
+  }
+  setVideoStatus('Uploading...');
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const response = await fetch('/api/video/upload', { method: 'POST', body: form });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      setVideoStatus(data.error || 'Upload failed.');
+      return;
+    }
+    setVideoStatus(`Playing: ${data.filename}`);
+  } catch (err) {
+    setVideoStatus('Upload failed.');
+  }
+});
+
+stopVideoBtn?.addEventListener('click', async () => {
+  setVideoStatus('Stopping...');
+  try {
+    const response = await fetch('/api/video/stop', { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      setVideoStatus(data.error || 'Stop failed.');
+      return;
+    }
+    setVideoStatus('Video stopped.');
+  } catch (err) {
+    setVideoStatus('Stop failed.');
+  }
 });
 
 setInterval(() => { refreshStats(); refreshEvents(); }, 4000);

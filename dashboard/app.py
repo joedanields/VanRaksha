@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime, timezone
+from pathlib import Path
 from queue import Empty
 
 import cv2
 import numpy as np
 from flask import Flask, Response, jsonify, render_template, request
 from flask_socketio import SocketIO
+from werkzeug.utils import secure_filename
 
 import config
 
@@ -21,15 +24,20 @@ class DashboardServer:
         self.event_logger = event_logger
         self.frame_queue = frame_queue
         self.shared_state = shared_state or {"confidence_threshold": config.CONFIDENCE_THRESHOLD, "alert_mute": False}
+        self.shared_state.setdefault("video_source", None)
         self.state_lock = threading.Lock()
         self.frame_lock = threading.Lock()
         self.latest_frame: bytes | None = None
+        self.upload_dir = config.BASE_DIR / "uploads"
+        self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self.allowed_video_exts = {"mp4", "avi", "mov", "mkv"}
 
         self.app = Flask(
             __name__,
             template_folder=str((config.BASE_DIR / "dashboard/templates")),
             static_folder=str((config.BASE_DIR / "dashboard/static")),
         )
+        self.app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
         self.socketio = SocketIO(self.app, cors_allowed_origins="*")
         self._register_routes()
         threading.Thread(target=self._frame_ingest_loop, daemon=True).start()
@@ -56,6 +64,35 @@ class DashboardServer:
                 if "alert_mute" in data:
                     self.shared_state["alert_mute"] = bool(data["alert_mute"])
             return jsonify({"ok": True, "config": self.shared_state})
+
+        @self.app.post("/api/video/upload")
+        def api_video_upload():
+            if "file" not in request.files:
+                return jsonify({"ok": False, "error": "Missing file"}), 400
+            file = request.files["file"]
+            if not file or not file.filename:
+                return jsonify({"ok": False, "error": "No file selected"}), 400
+
+            ext = Path(file.filename).suffix.lower().lstrip(".")
+            if ext not in self.allowed_video_exts:
+                return jsonify({"ok": False, "error": "Unsupported file type"}), 400
+
+            base_name = secure_filename(Path(file.filename).stem) or "video"
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            filename = f"{base_name}_{timestamp}.{ext}"
+            path = self.upload_dir / filename
+            file.save(str(path))
+
+            with self.state_lock:
+                self.shared_state["video_source"] = str(path)
+
+            return jsonify({"ok": True, "filename": filename})
+
+        @self.app.post("/api/video/stop")
+        def api_video_stop():
+            with self.state_lock:
+                self.shared_state["video_source"] = None
+            return jsonify({"ok": True})
 
         @self.app.get("/video_feed")
         def video_feed():
