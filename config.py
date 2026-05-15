@@ -27,6 +27,12 @@ def _as_int(value: str, default: int) -> int:
         return default
 
 
+def _as_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip().lower() for item in value.split(",") if item.strip()]
+
+
 def _camera_source(value: str) -> int | str:
     if value is None:
         return 0
@@ -45,6 +51,14 @@ CLASSIFIER_MODEL_PATH = BASE_DIR / os.getenv("CLASSIFIER_MODEL_PATH", "detection
 NIGHT_MODEL_PATH = os.getenv("NIGHT_MODEL_PATH", "")
 NIGHT_MODEL_PATH = BASE_DIR / NIGHT_MODEL_PATH if NIGHT_MODEL_PATH else None
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
+WILD_ANIMAL_LABELS = _as_list(
+    os.getenv(
+        "WILD_ANIMAL_LABELS",
+        "tiger,elephant,leopard,sloth_bear,wild_boar,gaur,wolf,hyena,nilgai,deer,monkey,peacock",
+    )
+)
+HUMAN_LABELS = _as_list(os.getenv("HUMAN_LABELS", "person,human"))
+HUMAN_ANIMAL_DISTANCE_RATIO = float(os.getenv("HUMAN_ANIMAL_DISTANCE_RATIO", "0.15"))
 
 # Alerts
 NIGHT_START_HOUR = _as_int(os.getenv("NIGHT_START_HOUR"), 18)

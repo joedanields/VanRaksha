@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import threading
 import time
@@ -22,6 +23,35 @@ from threat.alert_level import AlertLevel, get_alert_level
 from threat.scorer import ThreatScorer
 from threat.species_index import SPECIES_CLASS_NAMES
 from utils.drawing import annotate_detection
+
+
+LABEL_ALIASES = {
+    "boar": "wild_boar",
+    "wildboar": "wild_boar",
+    "person": "human",
+    "people": "human",
+}
+
+
+def _normalize_label(label: str) -> str:
+    value = (label or "").strip().lower()
+    return LABEL_ALIASES.get(value, value)
+
+
+def _bbox_center(bbox: list) -> tuple[float, float]:
+    x1, y1, x2, y2 = [float(v) for v in bbox]
+    return (x1 + x2) / 2.0, (y1 + y2) / 2.0
+
+
+def _human_near_animal(animal_bbox: list, human_detections: list[dict], threshold_px: float) -> bool:
+    if not human_detections:
+        return False
+    ax, ay = _bbox_center(animal_bbox)
+    for det in human_detections:
+        hx, hy = _bbox_center(det["bbox"])
+        if math.hypot(ax - hx, ay - hy) <= threshold_px:
+            return True
+    return False
 
 
 def main():
@@ -51,6 +81,10 @@ def main():
     if not cap.isOpened():
         log.warning("Camera unavailable; dashboard will show No feed")
 
+    wild_labels = {_normalize_label(label) for label in config.WILD_ANIMAL_LABELS if label}
+    human_labels = {_normalize_label(label) for label in config.HUMAN_LABELS if label}
+    allowed_labels = wild_labels | human_labels
+
     fps_counter = 0
     tick = time.time()
     try:
@@ -71,12 +105,36 @@ def main():
                 detector = WildlifeDetector(str(active_model_path), float(shared_state["confidence_threshold"]))
             detections = detector.detect(frame)
 
-            for det in detections:
+            filtered_detections = []
+            if allowed_labels:
+                for det in detections:
+                    label_norm = _normalize_label(det.get("label", "unknown"))
+                    if label_norm not in allowed_labels:
+                        continue
+                    det["label_norm"] = label_norm
+                    filtered_detections.append(det)
+            else:
+                for det in detections:
+                    det["label_norm"] = _normalize_label(det.get("label", "unknown"))
+                filtered_detections = detections
+
+            human_detections = [det for det in filtered_detections if det["label_norm"] in human_labels]
+            if wild_labels:
+                animal_detections = [det for det in filtered_detections if det["label_norm"] in wild_labels]
+            else:
+                animal_detections = [det for det in filtered_detections if det["label_norm"] not in human_labels]
+            distance_threshold_px = max(1.0, config.HUMAN_ANIMAL_DISTANCE_RATIO * frame.shape[1])
+
+            for det in animal_detections:
                 bbox = det["bbox"]
-                cls = classifier.classify(frame, bbox, yolo_label=det.get("label", "unknown"))
-                species = cls["species"]
-                score = scorer.score(species, bbox, frame.shape, len(detections), det["confidence"])
+                yolo_label = det.get("label_norm", det.get("label", "unknown"))
+                cls = classifier.classify(frame, bbox, yolo_label=yolo_label)
+                species = _normalize_label(cls["species"])
+                score = scorer.score(species, bbox, frame.shape, len(animal_detections), det["confidence"])
                 level = get_alert_level(score)
+                if _human_near_animal(bbox, human_detections, distance_threshold_px):
+                    level = AlertLevel.CRITICAL
+                    score = max(score, 90.0)
 
                 annotate_detection(frame, bbox, species, det["confidence"], score, level)
 
@@ -126,7 +184,7 @@ def main():
             fps_counter += 1
             now = time.time()
             if now - tick >= 1:
-                dashboard.emit_frame_stats({"fps": fps_counter, "detections": len(detections)})
+                dashboard.emit_frame_stats({"fps": fps_counter, "detections": len(animal_detections)})
                 fps_counter = 0
                 tick = now
 
