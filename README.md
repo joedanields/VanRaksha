@@ -137,6 +137,63 @@ python -m unittest discover -s tests -v
 - `SMS_PROVIDER` supports `twilio` (default), `gsm`, or mock behavior.
 - Alert mute and confidence threshold can be updated at runtime via dashboard API.
 
+## Wild-Animal Filtering and Human Proximity Alerts
+
+To focus detection on wild animals while still detecting humans for critical alerts:
+
+- `WILD_ANIMAL_LABELS` — comma-separated labels to keep (lowercase). Example:
+  `tiger,elephant,leopard,deer,wild_boar`
+- `HUMAN_LABELS` — labels treated as humans. Default: `person,human`
+- `HUMAN_ANIMAL_DISTANCE_RATIO` — distance threshold as a ratio of frame width. Example: `0.15`
+
+If any human detection is within the configured distance of a wild-animal detection in the same frame,
+the alert level is forced to `CRITICAL`.
+
+## Fine-Tuning YOLOv8 (Wild Animals + Human)
+
+1) Collect and label images in YOLO format.
+
+Recommended dataset layout:
+
+```text
+dataset/
+├── images/
+│   ├── train/
+│   └── val/
+└── labels/
+    ├── train/
+    └── val/
+```
+
+2) Create a `data.yaml` with your class list (include a human class):
+
+```yaml
+path: /absolute/path/to/dataset
+train: images/train
+val: images/val
+names:
+  - tiger
+  - elephant
+  - leopard
+  - deer
+  - wild_boar
+  - human
+```
+
+3) Train:
+
+```bash
+yolo detect train data=/path/to/data.yaml model=detection/models/yolov8n.pt epochs=100 imgsz=640
+```
+
+4) Update `.env`:
+
+```bash
+YOLO_MODEL_PATH=runs/detect/train/weights/best.pt
+WILD_ANIMAL_LABELS=tiger,elephant,leopard,deer,wild_boar
+HUMAN_LABELS=human,person
+```
+
 ## License
 
 This repository includes a `LICENSE` file. See `LICENSE` for details.
