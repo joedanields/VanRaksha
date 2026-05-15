@@ -34,6 +34,15 @@
         <article><h3>Most seen species</h3><p class="mono" id="mostSeen">-</p></article>
         <article><h3>Last alert time</h3><p class="mono" id="lastAlert">-</p></article>
       </div>
+      <div class="upload">
+        <label for="videoFile">Video file</label>
+        <input id="videoFile" type="file" accept="video/*" />
+        <div class="upload-actions">
+          <button id="uploadBtn">Play video</button>
+          <button id="stopVideoBtn" class="secondary">Stop video</button>
+        </div>
+        <div id="videoStatus" class="mono small">No video loaded</div>
+      </div>
       <button id="muteBtn" aria-pressed="false">Mute voice</button>
       <table>
         <thead><tr><th>Timestamp</th><th>Species</th><th>Score</th><th>Alert</th></tr></thead>
