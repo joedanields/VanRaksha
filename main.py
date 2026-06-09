@@ -164,6 +164,8 @@ def main():
                 animal_detections = [det for det in filtered_detections if det["label_norm"] not in human_labels]
             distance_threshold_px = max(1.0, config.HUMAN_ANIMAL_DISTANCE_RATIO * frame.shape[1])
 
+            current_max_score = 0.0
+
             for det in animal_detections:
                 bbox = det["bbox"]
                 yolo_label = det.get("label_norm", det.get("label", "unknown"))
@@ -174,6 +176,8 @@ def main():
                 if _human_near_animal(bbox, human_detections, distance_threshold_px):
                     level = AlertLevel.CRITICAL
                     score = max(score, 90.0)
+
+                current_max_score = max(current_max_score, score)
 
                 annotate_detection(frame, bbox, species, det["confidence"], score, level)
 
@@ -212,6 +216,11 @@ def main():
                     f"[{datetime.now().strftime('%H:%M:%S')}] {species.upper()} | conf:{det['confidence']:.2f} | "
                     f"score:{score:.1f} | {level.name} | SMS:{'sent' if sms_sent else 'skip'} | Voice:{'played' if voice_played else 'skip'}"
                 )
+
+            dashboard.emit_threat_progression({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "score": current_max_score
+            })
 
             if frame_queue.full():
                 try:

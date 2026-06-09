@@ -10,6 +10,8 @@ main { display:flex; gap:14px; padding:14px; }
 #feed { width:100%; border:2px solid #234f31; border-radius:8px; background:#111; min-height:360px; }
 .cards { display:grid; grid-template-columns:1fr; gap:8px; }
 .cards article { background:#0f1610; border:1px solid #1f3a27; border-radius:8px; padding:10px; }
+.threat-chart-card { width: 100%; min-height: 200px; display: flex; flex-direction: column; }
+#threatChart { width: 100% !important; height: 160px !important; margin-top: 8px; flex-grow: 1; }
 .upload { margin-top:10px; background:#0f1610; border:1px solid #1f3a27; border-radius:8px; padding:10px; }
 .upload label { display:block; margin-bottom:6px; font-size:12px; color:#a3d7b6; }
 .upload input[type="file"] { width:100%; padding:6px; border-radius:6px; border:1px solid #1f3a27; background:#101a12; color:#d9ffe9; }
