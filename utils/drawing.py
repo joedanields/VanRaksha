@@ -14,14 +14,24 @@ COLOR_MAP = {
 }
 
 
-def annotate_detection(frame, bbox, species: str, confidence: float, score: float, alert_level: AlertLevel):
+def annotate_detection(
+    frame,
+    bbox,
+    species: str,
+    confidence: float,
+    score: float,
+    alert_level: AlertLevel,
+    draw_frame_border: bool = True,
+    label_override: str | None = None,
+):
     """Draw bbox and status labels over frame."""
     x1, y1, x2, y2 = [int(v) for v in bbox]
     color = COLOR_MAP[alert_level]
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-    label = f"{species} {confidence:.2f} | {score:.1f} {alert_level.name}"
+    label = label_override or f"{species} {confidence:.2f} | {score:.1f} {alert_level.name}"
     cv2.putText(frame, label, (x1, max(20, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-    cv2.rectangle(frame, (0, 0), (frame.shape[1] - 1, frame.shape[0] - 1), color, 6)
+    if draw_frame_border:
+        cv2.rectangle(frame, (0, 0), (frame.shape[1] - 1, frame.shape[0] - 1), color, 6)
     return frame
 
 

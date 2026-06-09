@@ -164,6 +164,20 @@ def main():
                 animal_detections = [det for det in filtered_detections if det["label_norm"] not in human_labels]
             distance_threshold_px = max(1.0, config.HUMAN_ANIMAL_DISTANCE_RATIO * frame.shape[1])
 
+            for det in human_detections:
+                bbox = det["bbox"]
+                label = f"human {det['confidence']:.2f}"
+                annotate_detection(
+                    frame,
+                    bbox,
+                    "human",
+                    det["confidence"],
+                    0.0,
+                    AlertLevel.CAUTION,
+                    draw_frame_border=False,
+                    label_override=label,
+                )
+
             for det in animal_detections:
                 bbox = det["bbox"]
                 yolo_label = det.get("label_norm", det.get("label", "unknown"))
