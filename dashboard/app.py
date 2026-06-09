@@ -132,8 +132,11 @@ class DashboardServer:
     def emit_frame_stats(self, payload: dict) -> None:
         self.socketio.emit("frame_stats", payload)
 
+    def emit_threat_progression(self, payload: dict) -> None:
+        self.socketio.emit("threat_progression", payload)
+
     def run(self) -> None:
-        self.socketio.run(self.app, host="0.0.0.0", port=config.FLASK_PORT, debug=config.FLASK_DEBUG, use_reloader=False)
+        self.socketio.run(self.app, host="0.0.0.0", port=config.FLASK_PORT, debug=config.FLASK_DEBUG, use_reloader=False, allow_unsafe_werkzeug=True)
 
 
 if __name__ == "__main__":

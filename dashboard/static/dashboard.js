@@ -5,6 +5,80 @@ const videoStatus = document.getElementById('videoStatus');
 const uploadBtn = document.getElementById('uploadBtn');
 const stopVideoBtn = document.getElementById('stopVideoBtn');
 
+// Chart Setup
+const ctx = document.getElementById('threatChart')?.getContext('2d');
+let threatChart = null;
+
+if (ctx) {
+  threatChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Threat Score',
+        data: [],
+        borderColor: 'rgba(217, 255, 233, 0.5)',
+        borderWidth: 2,
+        tension: 0.3,
+        pointBackgroundColor: [],
+        pointRadius: 4,
+        fill: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 500,
+        easing: 'linear'
+      },
+      scales: {
+        x: {
+          display: true,
+          ticks: { color: '#a3d7b6', font: { size: 10 } },
+          grid: { color: '#1f3a27' }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          display: true,
+          ticks: { color: '#a3d7b6', font: { size: 10 } },
+          grid: { color: '#1f3a27' }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+}
+
+function getScoreColor(score) {
+  if (score <= 25) return '#2ecc71'; // Safe = green
+  if (score <= 50) return '#f1c40f'; // Warning = yellow
+  if (score <= 75) return '#e67e22'; // High = orange
+  return '#ff4d4d'; // Critical = red
+}
+
+socket.on('threat_progression', data => {
+  if (!threatChart) return;
+  const timeLabel = new Date(data.timestamp).toLocaleTimeString();
+  const score = data.score || 0;
+
+  threatChart.data.labels.push(timeLabel);
+  threatChart.data.datasets[0].data.push(score);
+  threatChart.data.datasets[0].pointBackgroundColor.push(getScoreColor(score));
+
+  if (threatChart.data.labels.length > 30) {
+    threatChart.data.labels.shift();
+    threatChart.data.datasets[0].data.shift();
+    threatChart.data.datasets[0].pointBackgroundColor.shift();
+  }
+
+  threatChart.update('none'); // use 'none' for smoother continuous updates without layout re-calc overhead
+});
+
+
 function setVideoStatus(message) {
   if (!videoStatus) return;
   videoStatus.textContent = message;

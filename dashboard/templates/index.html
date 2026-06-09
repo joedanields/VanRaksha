@@ -33,6 +33,10 @@
         <article><h3>Total detections today</h3><p class="mono" id="totalDetections">0</p></article>
         <article><h3>Most seen species</h3><p class="mono" id="mostSeen">-</p></article>
         <article><h3>Last alert time</h3><p class="mono" id="lastAlert">-</p></article>
+        <article class="threat-chart-card">
+          <h3>Threat Progression</h3>
+          <canvas id="threatChart"></canvas>
+        </article>
       </div>
       <div class="upload">
         <label for="videoFile">Video file</label>
@@ -57,6 +61,7 @@
   </footer>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 </body>
 </html>
