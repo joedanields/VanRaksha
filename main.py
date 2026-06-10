@@ -14,20 +14,21 @@ import config
 from dashboard.app import DashboardServer
 from detection.classifier import SpeciesClassifier
 from detection.detector import WildlifeDetector
-from detection.night_switch import NightSwitch
 from logger.event_logger import EventLogger
 from output.led_controller import LEDController
 from output.sms_alert import SMSAlert
 from output.voice import VoiceAlert
 from threat.alert_level import AlertLevel, get_alert_level
 from threat.scorer import ThreatScorer
-from threat.species_index import SPECIES_CLASS_NAMES
+from threat.species_index import SPECIES_CLASS_NAMES, get_risk_label
 from utils.drawing import annotate_detection
 
 
+# Label normalisation: maps raw YOLO output names → VanRaksha species keys.
+# Custom model (best_enlightengan_and_yolov8.pt) outputs "tiger" directly.
+# COCO model (yolov8n.pt) outputs "elephant" and "person" directly.
 LABEL_ALIASES = {
-    "boar": "wild_boar",
-    "wildboar": "wild_boar",
+    # Human variants
     "person": "human",
     "people": "human",
 }
@@ -43,15 +44,21 @@ def _bbox_center(bbox: list) -> tuple[float, float]:
     return (x1 + x2) / 2.0, (y1 + y2) / 2.0
 
 
-def _human_near_animal(animal_bbox: list, human_detections: list[dict], threshold_px: float) -> bool:
+def _closest_human_distance(animal_bbox: list, human_detections: list[dict]) -> float:
+    """Return the pixel distance to the nearest human, or -1.0 if none present."""
     if not human_detections:
-        return False
+        return -1.0
     ax, ay = _bbox_center(animal_bbox)
-    for det in human_detections:
-        hx, hy = _bbox_center(det["bbox"])
-        if math.hypot(ax - hx, ay - hy) <= threshold_px:
-            return True
-    return False
+    return min(
+        math.hypot(ax - _bbox_center(det["bbox"])[0], ay - _bbox_center(det["bbox"])[1])
+        for det in human_detections
+    )
+
+
+def _human_near_animal(animal_bbox: list, human_detections: list[dict], threshold_px: float) -> bool:
+    """Return True if the nearest human is within threshold_px of the animal."""
+    dist = _closest_human_distance(animal_bbox, human_detections)
+    return 0.0 <= dist <= threshold_px
 
 
 def _is_camera_source(source: int | str) -> bool:
@@ -79,9 +86,17 @@ def main():
     shared_state = {"confidence_threshold": config.CONFIDENCE_THRESHOLD, "alert_mute": False, "video_source": None}
 
     event_logger = EventLogger(str(config.DB_PATH))
-    night_switch = NightSwitch(str(config.YOLO_MODEL_PATH), str(config.NIGHT_MODEL_PATH) if config.NIGHT_MODEL_PATH else None, config.NIGHT_START_HOUR, config.NIGHT_END_HOUR)
-    detector = WildlifeDetector(str(config.YOLO_MODEL_PATH), config.CONFIDENCE_THRESHOLD)
-    active_model_path = str(config.YOLO_MODEL_PATH)
+
+    # ── Dual detector setup ──────────────────────────────────────────────────
+    # Tiger detector: custom model trained specifically on tigers.
+    tiger_detector = WildlifeDetector(str(config.TIGER_MODEL_PATH), config.CONFIDENCE_THRESHOLD)
+    log.info("Tiger model loaded: %s", config.TIGER_MODEL_PATH)
+
+    # General detector: COCO model for person + elephant detection.
+    general_detector = WildlifeDetector(str(config.YOLO_MODEL_PATH), config.CONFIDENCE_THRESHOLD)
+    log.info("General model loaded: %s", config.YOLO_MODEL_PATH)
+    # ─────────────────────────────────────────────────────────────────────────
+
     classifier = SpeciesClassifier(str(config.CLASSIFIER_MODEL_PATH), SPECIES_CLASS_NAMES)
     scorer = ThreatScorer()
     voice = VoiceAlert(language=config.TTS_LANGUAGE, use_online=config.USE_ONLINE_TTS, cooldown_seconds=config.VOICE_COOLDOWN_SECONDS)
@@ -96,7 +111,7 @@ def main():
     if not cap.isOpened():
         log.warning("Input source unavailable; dashboard will show No feed")
 
-    wild_labels = {_normalize_label(label) for label in config.WILD_ANIMAL_LABELS if label}
+    wild_labels = {"tiger", "elephant"}   # Only tiger and elephant as wildlife targets
     human_labels = {_normalize_label(label) for label in config.HUMAN_LABELS if label}
     allowed_labels = wild_labels | human_labels
 
@@ -137,25 +152,39 @@ def main():
                 else:
                     continue
 
-            detector.confidence_threshold = float(shared_state.get("confidence_threshold", config.CONFIDENCE_THRESHOLD))
-            next_model_path = night_switch.get_active_model_path()
-            if next_model_path != active_model_path:
-                active_model_path = next_model_path
-                detector = WildlifeDetector(str(active_model_path), float(shared_state["confidence_threshold"]))
-            detections = detector.detect(frame)
+            # ── Camera paused? Push placeholder and skip detection ──────────
+            if not shared_state.get("camera_active", True):
+                pause_frame = frame.copy()
+                cv2.rectangle(pause_frame, (0, 0), (pause_frame.shape[1] - 1, pause_frame.shape[0] - 1), (60, 60, 60), 8)
+                cv2.putText(pause_frame, "CAMERA PAUSED", (pause_frame.shape[1] // 2 - 160, pause_frame.shape[0] // 2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (80, 80, 255), 3)
+                if frame_queue.full():
+                    try:
+                        frame_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                frame_queue.put_nowait(pause_frame)
+                time.sleep(0.05)
+                continue
+            # ────────────────────────────────────────────────────────────────
+
+            conf_threshold = float(shared_state.get("confidence_threshold", config.CONFIDENCE_THRESHOLD))
+            tiger_detector.confidence_threshold = conf_threshold
+            general_detector.confidence_threshold = conf_threshold
+
+            # ── Run both detectors and merge results ─────────────────────────
+            tiger_detections = tiger_detector.detect(frame)   # outputs "tiger"
+            general_detections = general_detector.detect(frame)  # outputs COCO labels
+            raw_detections = tiger_detections + general_detections
+            # ────────────────────────────────────────────────────────────────
 
             filtered_detections = []
-            if allowed_labels:
-                for det in detections:
-                    label_norm = _normalize_label(det.get("label", "unknown"))
-                    if label_norm not in allowed_labels:
-                        continue
-                    det["label_norm"] = label_norm
-                    filtered_detections.append(det)
-            else:
-                for det in detections:
-                    det["label_norm"] = _normalize_label(det.get("label", "unknown"))
-                filtered_detections = detections
+            for det in raw_detections:
+                label_norm = _normalize_label(det.get("label", "unknown"))
+                if label_norm not in allowed_labels:
+                    continue
+                det["label_norm"] = label_norm
+                filtered_detections.append(det)
 
             human_detections = [det for det in filtered_detections if det["label_norm"] in human_labels]
             if wild_labels:
@@ -183,13 +212,29 @@ def main():
                 yolo_label = det.get("label_norm", det.get("label", "unknown"))
                 cls = classifier.classify(frame, bbox, yolo_label=yolo_label)
                 species = _normalize_label(cls["species"])
-                score = scorer.score(species, bbox, frame.shape, len(animal_detections), det["confidence"])
+
+                # Compute pixel distance to nearest human (used for distance-band scoring).
+                distance_px = _closest_human_distance(bbox, human_detections)
+
+                score = scorer.score(
+                    species,
+                    bbox,
+                    frame.shape,
+                    len(animal_detections),
+                    det["confidence"],
+                    distance_px=distance_px if distance_px >= 0 else None,
+                )
                 level = get_alert_level(score)
-                if _human_near_animal(bbox, human_detections, distance_threshold_px):
+
+                # CRITICAL override: animal is within the proximity threshold of a human.
+                if 0.0 <= distance_px <= distance_threshold_px:
                     level = AlertLevel.CRITICAL
                     score = max(score, 90.0)
 
-                annotate_detection(frame, bbox, species, det["confidence"], score, level)
+                # Resolve human-readable risk label for this species.
+                risk_label = get_risk_label(species)
+
+                annotate_detection(frame, bbox, species, det["confidence"], score, level, risk_label=risk_label)
 
                 voice_played = False
                 if level in (AlertLevel.CAUTION, AlertLevel.HIGH, AlertLevel.CRITICAL) and not shared_state.get("alert_mute", False):
@@ -205,6 +250,7 @@ def main():
                             "confidence": det["confidence"],
                             "score": score,
                             "alert_level": level.name,
+                            "risk_label": risk_label,
                         }
                     )
 
@@ -216,6 +262,7 @@ def main():
                         "confidence": det["confidence"],
                         "threat_score": score,
                         "alert_level": level.name,
+                        "risk_label": risk_label,
                         "bbox": bbox,
                         "sms_sent": sms_sent,
                         "voice_played": voice_played,
@@ -223,8 +270,9 @@ def main():
                 )
 
                 print(
-                    f"[{datetime.now().strftime('%H:%M:%S')}] {species.upper()} | conf:{det['confidence']:.2f} | "
-                    f"score:{score:.1f} | {level.name} | SMS:{'sent' if sms_sent else 'skip'} | Voice:{'played' if voice_played else 'skip'}"
+                    f"[{datetime.now().strftime('%H:%M:%S')}] {species.upper()} | {risk_label} | "
+                    f"conf:{det['confidence']:.2f} | score:{score:.1f} | {level.name} | "
+                    f"SMS:{'sent' if sms_sent else 'skip'} | Voice:{'played' if voice_played else 'skip'}"
                 )
 
             if frame_queue.full():

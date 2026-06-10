@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>VanRaksha AI Dashboard</title>
+  <meta name="description" content="VanRaksha AI real-time wildlife threat detection dashboard — deer, tiger and more." />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
@@ -18,6 +19,11 @@
   <main>
     <section class="left-panel">
       <img id="feed" src="/video_feed" alt="Live video feed" />
+      <div class="cam-controls">
+        <span id="camStatus" class="cam-dot live" title="Camera live"></span>
+        <span id="camStatusText" class="cam-status-text">LIVE</span>
+        <button id="camToggleBtn" class="cam-stop-btn">⏹ Stop Live Cam</button>
+      </div>
       <div class="live-details">
         <div>Species: <span class="mono" id="species">-</span></div>
         <div>Confidence: <span class="mono" id="confidence">0%</span></div>
@@ -25,6 +31,9 @@
           <div class="bar"><div id="scoreBar"></div></div>
         </div>
         <div>Alert: <span class="mono" id="alertText">SAFE</span></div>
+        <div id="riskLabelWrap" class="risk-label-wrap" style="display:none;">
+          <span id="riskLabel" class="risk-label">-</span>
+        </div>
       </div>
     </section>
 
@@ -45,7 +54,7 @@
       </div>
       <button id="muteBtn" aria-pressed="false">Mute voice</button>
       <table>
-        <thead><tr><th>Timestamp</th><th>Species</th><th>Score</th><th>Alert</th></tr></thead>
+        <thead><tr><th>Timestamp</th><th>Species</th><th>Risk</th><th>Score</th><th>Alert</th></tr></thead>
         <tbody id="eventsBody"></tbody>
       </table>
     </section>

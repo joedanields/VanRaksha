@@ -27,10 +27,31 @@ except ImportError:  # pragma: no cover
 class VoiceAlert:
     """Generate and play spoken threat alerts with cooldown controls."""
 
+    # Generic templates for all species (used as fallback).
     TEMPLATES = {
         AlertLevel.CAUTION: "Attention. A {species} has been detected {direction}. Please stay on the marked path and remain calm.",
         AlertLevel.HIGH: "Warning. A {species} is approaching from {direction}. Move away slowly. Do not run. Alert forest officers if possible.",
         AlertLevel.CRITICAL: "Emergency alert. A {species} is very close, {direction}. Move immediately to the nearest shelter. Walk calmly. Do not run. Forest officers have been notified.",
+    }
+
+    # Tiger-specific templates — HIGH RISK messaging.
+    TEMPLATES_TIGER = {
+        AlertLevel.CAUTION: "HIGH RISK alert. A tiger has been detected {direction}. This is extremely dangerous. Move away slowly and stay calm.",
+        AlertLevel.HIGH: "HIGH RISK — Tiger warning! A tiger is approaching from {direction}. Do not run. Move away slowly and alert forest officers immediately.",
+        AlertLevel.CRITICAL: "CRITICAL — HIGH RISK. A tiger is very close, {direction}. Move immediately to the nearest shelter. Do not run. Forest officers have been notified.",
+    }
+
+    # Deer-specific templates — LOW RISK messaging.
+    TEMPLATES_DEER = {
+        AlertLevel.CAUTION: "LOW RISK. A deer has been detected {direction}. Please maintain your distance and do not disturb the animal.",
+        AlertLevel.HIGH: "LOW RISK warning. A deer is close from {direction}. Keep calm, maintain distance, and do not make sudden movements.",
+        AlertLevel.CRITICAL: "LOW RISK — Deer very close, {direction}. Please back away slowly and give the animal space to move.",
+    }
+
+    # Map species name → custom template set.
+    _SPECIES_TEMPLATES = {
+        "tiger": TEMPLATES_TIGER,
+        "deer": TEMPLATES_DEER,
     }
 
     def __init__(self, language: str = "en", use_online: bool = False, cooldown_seconds: int = 30):
@@ -47,7 +68,8 @@ class VoiceAlert:
     def _message(self, species: str, alert_level: AlertLevel, direction: str, distance_m: int | None) -> str | None:
         if alert_level == AlertLevel.SAFE:
             return None
-        template = self.TEMPLATES.get(alert_level)
+        template_set = self._SPECIES_TEMPLATES.get(species.lower(), self.TEMPLATES)
+        template = template_set.get(alert_level)
         if not template:
             return None
         message = template.format(species=species, direction=direction)

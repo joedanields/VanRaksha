@@ -47,6 +47,7 @@ FRAME_HEIGHT = _as_int(os.getenv("FRAME_HEIGHT"), 720)
 
 # Models
 YOLO_MODEL_PATH = BASE_DIR / os.getenv("YOLO_MODEL_PATH", "detection/models/yolov8n.pt")
+TIGER_MODEL_PATH = BASE_DIR / os.getenv("TIGER_MODEL_PATH", "weights/best_enlightengan_and_yolov8.pt")
 CLASSIFIER_MODEL_PATH = BASE_DIR / os.getenv("CLASSIFIER_MODEL_PATH", "detection/models/species_classifier.pt")
 NIGHT_MODEL_PATH = os.getenv("NIGHT_MODEL_PATH", "")
 NIGHT_MODEL_PATH = BASE_DIR / NIGHT_MODEL_PATH if NIGHT_MODEL_PATH else None
@@ -54,7 +55,8 @@ CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
 WILD_ANIMAL_LABELS = _as_list(
     os.getenv(
         "WILD_ANIMAL_LABELS",
-        "tiger,elephant,leopard,sloth_bear,wild_boar,gaur,wolf,hyena,nilgai,deer,monkey,peacock",
+        # Only tiger (from custom model) and elephant (from COCO model) are targets.
+        "tiger,elephant",
     )
 )
 HUMAN_LABELS = _as_list(os.getenv("HUMAN_LABELS", "person,human"))

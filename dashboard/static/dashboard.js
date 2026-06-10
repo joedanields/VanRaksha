@@ -33,7 +33,8 @@ async function refreshEvents() {
   events.slice(0, 20).forEach(e => {
     const tr = document.createElement('tr');
     tr.className = (e.alert_level || 'SAFE').toLowerCase();
-    tr.innerHTML = `<td>${e.timestamp || '-'}</td><td>${e.species || '-'}</td><td>${(e.threat_score || 0).toFixed ? e.threat_score.toFixed(1) : e.threat_score}</td><td>${e.alert_level || 'SAFE'}</td>`;
+    const riskLabelText = e.risk_label || '-';
+    tr.innerHTML = `<td>${e.timestamp || '-'}</td><td>${e.species || '-'}</td><td class="risk-cell">${riskLabelText}</td><td>${(e.threat_score || 0).toFixed ? e.threat_score.toFixed(1) : e.threat_score}</td><td>${e.alert_level || 'SAFE'}</td>`;
     body.appendChild(tr);
   });
 }
@@ -49,10 +50,60 @@ socket.on('new_alert', data => {
   badge.className = `badge ${level}`;
   badge.textContent = data.alert_level || 'SAFE';
   document.getElementById('lastAlert').textContent = new Date().toLocaleString();
+
+  // Show risk label prominently when present.
+  const riskLabel = data.risk_label || '';
+  const riskLabelWrap = document.getElementById('riskLabelWrap');
+  const riskLabelEl = document.getElementById('riskLabel');
+  if (riskLabel) {
+    riskLabelEl.textContent = riskLabel;
+    // Determine color class from label prefix.
+    riskLabelEl.className = 'risk-label';
+    if (riskLabel.startsWith('HIGH')) riskLabelEl.classList.add('risk-high');
+    else if (riskLabel.startsWith('CRITICAL')) riskLabelEl.classList.add('risk-critical');
+    else if (riskLabel.startsWith('MODERATE')) riskLabelEl.classList.add('risk-moderate');
+    else riskLabelEl.classList.add('risk-low');
+    riskLabelWrap.style.display = '';
+  } else {
+    riskLabelWrap.style.display = 'none';
+  }
+
   refreshEvents();
 });
 
 socket.on('frame_stats', () => {});
+
+// ── Camera stop / resume toggle ───────────────────────────────────────────
+const camToggleBtn = document.getElementById('camToggleBtn');
+const camStatus    = document.getElementById('camStatus');
+const camStatusText = document.getElementById('camStatusText');
+let camLive = true;
+
+camToggleBtn?.addEventListener('click', async () => {
+  const endpoint = camLive ? '/api/camera/stop' : '/api/camera/start';
+  try {
+    const res = await fetch(endpoint, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || !data.ok) return;
+    camLive = !camLive;
+    if (camLive) {
+      camToggleBtn.textContent = '⏹ Stop Live Cam';
+      camToggleBtn.classList.remove('cam-resume-btn');
+      camToggleBtn.classList.add('cam-stop-btn');
+      camStatus.className = 'cam-dot live';
+      camStatusText.textContent = 'LIVE';
+    } else {
+      camToggleBtn.textContent = '▶ Resume Cam';
+      camToggleBtn.classList.remove('cam-stop-btn');
+      camToggleBtn.classList.add('cam-resume-btn');
+      camStatus.className = 'cam-dot paused';
+      camStatusText.textContent = 'PAUSED';
+    }
+  } catch (err) {
+    console.error('Camera toggle failed:', err);
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────
 
 document.getElementById('muteBtn').addEventListener('click', async () => {
   state.muted = !state.muted;
