@@ -25,12 +25,15 @@ from utils.drawing import annotate_detection
 
 
 # Label normalisation: maps raw YOLO output names → VanRaksha species keys.
-# Custom model (best_enlightengan_and_yolov8.pt) outputs "tiger" directly.
-# COCO model (yolov8n.pt) outputs "elephant" and "person" directly.
+# Combined model (wildlife_combined.pt) outputs: tiger, leopard, bear, deer
+# COCO model     (yolov8n.pt)            outputs: elephant, person
 LABEL_ALIASES = {
     # Human variants
-    "person": "human",
-    "people": "human",
+    "person":   "human",
+    "people":   "human",
+    # Bear → maps to species_index key (which has 'sloth_bear' for risk label,
+    # but we also accept plain 'bear' from the new trained model)
+    "bear":     "bear",   # handled directly — risk label: HIGH RISK – SLOTH BEAR
 }
 
 
@@ -111,7 +114,8 @@ def main():
     if not cap.isOpened():
         log.warning("Input source unavailable; dashboard will show No feed")
 
-    wild_labels = {"tiger", "elephant"}   # Only tiger and elephant as wildlife targets
+    # Wildlife targets from combined model (tiger/leopard/bear/deer) + COCO (elephant)
+    wild_labels = {"tiger", "leopard", "bear", "deer", "elephant"}
     human_labels = {_normalize_label(label) for label in config.HUMAN_LABELS if label}
     allowed_labels = wild_labels | human_labels
 

@@ -8,6 +8,8 @@ SPECIES_DANGER_INDEX = {
     "tiger":      {"danger": 10, "category": "predator",  "risk_label": "HIGH RISK – TIGER"},
     "leopard":    {"danger": 9,  "category": "predator",  "risk_label": "HIGH RISK – LEOPARD"},
     "elephant":   {"danger": 9,  "category": "megafauna", "risk_label": "HIGH RISK – ELEPHANT"},
+    # "bear" = direct output from the new trained model (wildlife_combined.pt)
+    "bear":       {"danger": 8,  "category": "predator",  "risk_label": "HIGH RISK – BEAR"},
     "sloth_bear": {"danger": 8,  "category": "predator",  "risk_label": "HIGH RISK – SLOTH BEAR"},
     "wild_boar":  {"danger": 6,  "category": "medium",    "risk_label": "MODERATE RISK – WILD BOAR"},
     "gaur":       {"danger": 7,  "category": "megafauna", "risk_label": "HIGH RISK – GAUR"},

@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+#Datasets
+dataset
+training_data
+training_runs
+
 # Distribution / packaging
 .Python
 build/
