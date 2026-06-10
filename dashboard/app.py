@@ -25,6 +25,7 @@ class DashboardServer:
         self.frame_queue = frame_queue
         self.shared_state = shared_state or {"confidence_threshold": config.CONFIDENCE_THRESHOLD, "alert_mute": False}
         self.shared_state.setdefault("video_source", None)
+        self.shared_state.setdefault("camera_active", True)  # False = live cam paused
         self.state_lock = threading.Lock()
         self.frame_lock = threading.Lock()
         self.latest_frame: bytes | None = None
@@ -93,6 +94,20 @@ class DashboardServer:
             with self.state_lock:
                 self.shared_state["video_source"] = None
             return jsonify({"ok": True})
+
+        @self.app.post("/api/camera/stop")
+        def api_camera_stop():
+            """Pause live camera processing and show a frozen/blank frame."""
+            with self.state_lock:
+                self.shared_state["camera_active"] = False
+            return jsonify({"ok": True, "camera_active": False})
+
+        @self.app.post("/api/camera/start")
+        def api_camera_start():
+            """Resume live camera processing."""
+            with self.state_lock:
+                self.shared_state["camera_active"] = True
+            return jsonify({"ok": True, "camera_active": True})
 
         @self.app.get("/video_feed")
         def video_feed():
